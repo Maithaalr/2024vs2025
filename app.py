@@ -4,13 +4,13 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-st.set_page_config(page_title='مقارنة الإجازات 2024 و2025', page_icon='📊', layout='wide')
+st.set_page_config(page_title='مقارنة الإجازات 2024 و2025', page_icon='', layout='wide')
 st.markdown('''<style>html,body,[class*="css"]{direction:rtl} .stMetric{text-align:right}</style>''', unsafe_allow_html=True)
-st.title('📊 لوحة مقارنة الإجازات | 2024 مقابل 2025')
-st.caption('يتم دمج جميع شيتات ملف 2024 تلقائياً قبل المقارنة. تتم المقارنة دون استخدام تاريخ بداية أو نهاية الإجازة. كل صف يمثل سجلاً واحداً، وقد لا يمثل طلباً مستقلاً إذا كان الملف يحتوي على صفوف مكررة أو مجزأة.')
+st.title(' لوحة مقارنة الإجازات | 2024 مقابل 2025')
+st.caption('')
 
-FIELDS_2024 = {'رقم الموظف':'employee_id','اسم الموظف':'employee_name','مكان العمل':'entity','العنصر':'leave_type','عدد الايام':'days'}
-FIELDS_2025 = {'رقم الموظف':'employee_id','اسم الموظف':'employee_name','اسم الدائرة':'entity','اسم الاجازة او الاذن':'leave_type','عدد الايام':'days'}
+FIELDS_2024 = {'رقم الموظف':'employee_id','اسم الموظف':'employee_name','مكان العمل':'entity','عدد الايام':'days'}
+FIELDS_2025 = {'رقم الموظف':'employee_id','اسم الموظف':'employee_name','اسم الدائرة':'entity','عدد الايام':'days'}
 
 def norm(s):
     s=str(s).strip().replace('ـ','').replace('أ','ا').replace('إ','ا').replace('آ','ا').replace('ة','ه').replace('ى','ي')
@@ -53,7 +53,7 @@ def prepare(raw, mapping, year):
     df['year']=str(year)
     df['employee_id']=df['employee_id'].astype('string').str.strip().str.replace(r'\.0$', '', regex=True)
     df['employee_id']=df['employee_id'].replace({'':'', 'nan':pd.NA, '<NA>':pd.NA})
-    for col in ['employee_name','entity','leave_type']:
+    for col in ['employee_name','entity']:
         df[col]=df[col].astype('string').str.strip().fillna('غير محدد').replace('', 'غير محدد')
     clean_days=df['days'].astype('string').str.replace('٫','.',regex=False).str.replace('٬','',regex=False).str.replace(',','',regex=False)
     for a,b in zip('٠١٢٣٤٥٦٧٨٩','0123456789'): clean_days=clean_days.str.replace(a,b,regex=False)
@@ -78,10 +78,10 @@ def group_compare(a,b,field):
     return out.sort_values('سجلات_2025',ascending=False)
 
 c1,c2=st.columns(2)
-with c1: f24=st.file_uploader('📁 ملف 2024 (Excel أو CSV)',type=['xlsx','xls','csv'],key='f24')
-with c2: f25=st.file_uploader('📁 ملف 2025 (Excel أو CSV)',type=['xlsx','xls','csv'],key='f25')
+with c1: f24=st.file_uploader(' ملف 2024 (Excel أو CSV)',type=['xlsx','xls','csv'],key='f24')
+with c2: f25=st.file_uploader(' ملف 2025 (Excel أو CSV)',type=['xlsx','xls','csv'],key='f25')
 if not (f24 and f25):
-    st.info('ارفعي الملفين لبدء المقارنة. يجب أن تكون أسماء الأعمدة في الصف الأول من كل ملف.')
+    st.info('')
     st.stop()
 try:
     a=prepare(read_file(f24, 2024),FIELDS_2024,2024)
@@ -90,19 +90,8 @@ except Exception as e:
     st.error(f'تعذرت قراءة الملفات: {e}')
     st.stop()
 
-st.subheader('إعدادات المقارنة')
-all_types=sorted(set(a['leave_type'].dropna())|set(b['leave_type'].dropna()))
-mode=st.radio('نطاق الإجازات', ['جميع الأنواع','الإجازات السنوية فقط','اختيار أنواع محددة'],horizontal=True)
-if mode=='الإجازات السنوية فقط':
-    # Matches Arabic annual-leave labels after normalization; show what matched.
-    selected=[x for x in all_types if 'سنوي' in norm(x)]
-    st.caption('الأنواع المطابقة: '+('، '.join(selected) if selected else 'لا يوجد؛ راجعي تسمية الإجازة في الملفين'))
-    a=a[a.leave_type.isin(selected)];b=b[b.leave_type.isin(selected)]
-elif mode=='اختيار أنواع محددة':
-    selected=st.multiselect('اختاري أنواع الإجازات',all_types,default=all_types)
-    a=a[a.leave_type.isin(selected)];b=b[b.leave_type.isin(selected)]
-
-st.warning('مهم: «مكان العمل» (2024) و«اسم الدائرة» (2025) قد لا يمثلان نفس المستوى التنظيمي؛ تحققي من تطابق الجهات قبل اعتماد تحليل الجهات. كذلك اختلاف مسميات أنواع الإجازات قد يفصل النوع نفسه إلى فئتين.')
+st.caption('تُجمع جميع السجلات بغض النظر عن نوع الإجازة، دون تصنيف أو فلترة حسب النوع.')
+st.warning('تحققي من أن «مكان العمل» في 2024 يعادل «اسم الدائرة» في 2025 قبل اعتماد مقارنة الجهات.')
 invalid_a=a['days'].isna().sum(); invalid_b=b['days'].isna().sum()
 negative_a=(a['days']<0).sum();negative_b=(b['days']<0).sum()
 if invalid_a or invalid_b or negative_a or negative_b:
@@ -127,11 +116,6 @@ entity=group_compare(a,b,'entity')
 st.dataframe(entity.rename(columns={'entity':'الجهة'}),use_container_width=True,hide_index=True)
 st.plotly_chart(px.bar(entity.head(15),x='entity',y=['سجلات_2024','سجلات_2025'],barmode='group',title='أعلى 15 جهة حسب عدد السجلات في 2025',labels={'entity':'الجهة','value':'السجلات','variable':'السنة'}),use_container_width=True)
 
-st.subheader('أنواع الإجازات')
-types=group_compare(a,b,'leave_type')
-st.dataframe(types.rename(columns={'leave_type':'نوع الإجازة'}),use_container_width=True,hide_index=True)
-st.plotly_chart(px.bar(types.head(15),x='leave_type',y=['سجلات_2024','سجلات_2025'],barmode='group',title='مقارنة أنواع الإجازات',labels={'leave_type':'النوع','value':'السجلات'}),use_container_width=True)
-
 st.subheader('مقارنة الموظفين')
 ids24=set(a['employee_id'].dropna());ids25=set(b['employee_id'].dropna())
 cc=st.columns(3)
@@ -140,7 +124,7 @@ cc[1].metric('ظهروا في 2025 فقط',len(ids25-ids24))
 cc[2].metric('ظهروا في 2024 فقط',len(ids24-ids25))
 st.caption('المقارنة هنا بحسب رقم الموظف، ولا تثبت أن الموظف لم يأخذ إجازة خارج نطاق الملفين.')
 
-st.subheader('🧠 أبرز النتائج التلقائية')
+st.subheader(' النتائج')
 for key,label in [('السجلات','عدد سجلات الإجازات'),('الأيام','إجمالي أيام الإجازة'),('الموظفون','عدد الموظفين'),('المتوسط','متوسط الأيام لكل سجل')]:
     diff=s25[key]-s24[key]
     verb='ارتفع' if diff>0 else ('انخفض' if diff<0 else 'لم يتغير')
@@ -152,7 +136,7 @@ output=io.BytesIO()
 with pd.ExcelWriter(output,engine='openpyxl') as writer:
     summary.to_excel(writer,sheet_name='الملخص',index=False)
     entity.to_excel(writer,sheet_name='مقارنة الجهات',index=False)
-    types.to_excel(writer,sheet_name='مقارنة الأنواع',index=False)
     a.to_excel(writer,sheet_name='بيانات 2024 الموحدة',index=False)
     b.to_excel(writer,sheet_name='بيانات 2025 الموحدة',index=False)
-st.download_button('⬇️ تحميل تقرير المقارنة Excel',data=output.getvalue(),file_name='leave_comparison_2024_2025.xlsx',mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+st.download_button(' تحميل تقرير المقارنة Excel',data=output.getvalue(),file_name='leave_comparison_2024_2025.xlsx',mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
