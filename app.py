@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(page_title='مقارنة الإجازات 2024 و2025', page_icon='📊', layout='wide')
 st.markdown('''<style>html,body,[class*="css"]{direction:rtl} .stMetric{text-align:right}</style>''', unsafe_allow_html=True)
 st.title('📊 لوحة مقارنة الإجازات | 2024 مقابل 2025')
-st.caption('تتم المقارنة دون استخدام تاريخ بداية أو نهاية الإجازة. كل صف يمثل سجلاً واحداً، وقد لا يمثل طلباً مستقلاً إذا كان الملف يحتوي على صفوف مكررة أو مجزأة.')
+st.caption('يتم دمج جميع شيتات ملف 2024 تلقائياً قبل المقارنة. تتم المقارنة دون استخدام تاريخ بداية أو نهاية الإجازة. كل صف يمثل سجلاً واحداً، وقد لا يمثل طلباً مستقلاً إذا كان الملف يحتوي على صفوف مكررة أو مجزأة.')
 
 FIELDS_2024 = {'رقم الموظف':'employee_id','اسم الموظف':'employee_name','مكان العمل':'entity','العنصر':'leave_type','عدد الايام':'days'}
 FIELDS_2025 = {'رقم الموظف':'employee_id','اسم الموظف':'employee_name','اسم الدائرة':'entity','اسم الاجازة او الاذن':'leave_type','عدد الايام':'days'}
@@ -16,13 +16,28 @@ def norm(s):
     s=str(s).strip().replace('ـ','').replace('أ','ا').replace('إ','ا').replace('آ','ا').replace('ة','ه').replace('ى','ي')
     return re.sub(r'\s+', ' ', s).lower()
 
-def read_file(file):
+def read_file(file, year):
     if file.name.lower().endswith('.csv'):
         file.seek(0)
         try: return pd.read_csv(file, encoding='utf-8-sig')
         except UnicodeDecodeError:
             file.seek(0); return pd.read_csv(file, encoding='cp1256')
     file.seek(0)
+    if year == 2024:
+        sheets = pd.read_excel(file, sheet_name=None)
+        if len(sheets) < 2:
+            st.warning('ملف 2024 يحتوي على أقل من شيتين؛ سيتم تحليل الشيتات المتاحة.')
+        parts = []
+        for sheet_name, frame in sheets.items():
+            if frame.empty:
+                continue
+            frame = frame.dropna(how='all').copy()
+            frame['source_sheet'] = sheet_name
+            parts.append(frame)
+        if not parts:
+            raise ValueError('جميع شيتات ملف 2024 فارغة.')
+        st.info('تم دمج شيتات 2024: ' + '، '.join(f'{x["source_sheet"].iloc[0]} ({len(x)} سجل)' for x in parts))
+        return pd.concat(parts, ignore_index=True, sort=False)
     return pd.read_excel(file, sheet_name=0)
 
 def prepare(raw, mapping, year):
@@ -69,8 +84,8 @@ if not (f24 and f25):
     st.info('ارفعي الملفين لبدء المقارنة. يجب أن تكون أسماء الأعمدة في الصف الأول من كل ملف.')
     st.stop()
 try:
-    a=prepare(read_file(f24),FIELDS_2024,2024)
-    b=prepare(read_file(f25),FIELDS_2025,2025)
+    a=prepare(read_file(f24, 2024),FIELDS_2024,2024)
+    b=prepare(read_file(f25, 2025),FIELDS_2025,2025)
 except Exception as e:
     st.error(f'تعذرت قراءة الملفات: {e}')
     st.stop()
